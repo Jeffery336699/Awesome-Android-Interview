@@ -215,21 +215,37 @@
 分析完布局的加载流程之后，我们发现有如下四点可能会导致布局卡顿：
 
 - 1、首先，系统会将我们的Xml文件通过**IO**的方式映射的方式加载到我们的内存当中，而IO的过程可能会导致卡顿。
-- 2、其次，布局加载的过程是一个反射的过程，而反射的过程也会可能会导致卡顿。
+
+- 2、其次，布局加载的过程是一个反射的过程，而反射的过程也会可能会导致卡顿（纠正）
+
+  - 没有创建Factory2，也没有设置Factory的话，最终会在这里进行反射view来创建
+
+  - Factory2还是采用的new对象方式，中间把普通View eg.TextView转成AppCompatTextView(偷梁换柱)
+
+    ```java
+    protected AppCompatButton createButton(Context context, AttributeSet attrs) {
+            return new AppCompatButton(context, attrs);
+    }
+    ```
+
 - 3、同时，这个布局的层级如果比较深，那么进行布局遍历的过程就会比较耗时。
+
 - 4、最后，不合理的嵌套RelativeLayout布局也会导致重绘的次数过多。
 
 对此，我们的优化方式有如下几种：
 
-- 1、针对布局加载Xml文件的优化，我们使用了异步Inflate的方式，即AsyncLayoutInflater。它的核心原理是在子线程中对我们的Layout进行加载，而加载完成之后会将View通过Handler发送到主线程来使用。所以不会阻塞我们的主线程，加载的时间全部是在异步线程中进行消耗的。而这仅仅是一个从侧面缓解的思路。
-- 2、后面，我们发现了一个从根源解决上述痛点的方式，即使用X2C框架。它的一个核心原理就是在开发过程我们还是使用的XML进行编写布局，但是在编译的时候它会使用APT的方式将XML布局转换为Java的方式进行布局，通过这样的方式去写布局，它有以下优点：1、它省去了使用IO的方式去加载XML布局的耗时过程。2、它是采用Java代码直接new的方式去创建控件对象，所以它也没有反射带来的性能损耗。这样就从根本上解决了布局加载过程中带来的问题。
-- 3、然后，我们可以使用ConstraintLayout去减少我们界面布局的嵌套层级，如果原始布局层级越深，它能减少的层级就越多。而使用它也能避免嵌套RelativeLayout布局导致的重绘次数过多。
-- 4、最后，我们可以使用AspectJ框架（即AOP）和LayoutInflaterCompat.setFactory2的方式分别去建立线下全局的布局加载速度和控件加载速度的监控体系。
+- 1、针对布局加载Xml文件的优化，我们使用了异步Inflate的方式，即**AsyncLayoutInflater**。它的核心原理是**在子线程中对我们的Layout进行加载，而加载完成之后会将View通过Handler发送到主线程来使用**。所以不会阻塞我们的主线程，加载的时间全部是在异步线程中进行消耗的。而这仅仅是一个从侧面缓解的思路。
+- 2、后面，我们发现了一个从根源解决上述痛点的方式，即使用**X2C框架**。它的一个**核心原理就是在开发过程我们还是使用的XML进行编写布局，但是在编译的时候它会使用APT的方式将XML布局转换为Java的方式进行布局**，通过这样的方式去写布局，它有以下优点：
+  - 1、**它省去了使用IO的方式去加载XML布局的耗时过程**。
+  - 2、它是采**用Java代码直接new的方式去创建控件对象**，所以它也没有反射带来的性能损耗。这样就从根本上解决了布局加载过程中带来的问题。
+
+- 3、然后，我们可以使用**ConstraintLayout去减少我们界面布局的嵌套层级**，如果原始布局层级越深，它能减少的层级就越多。而使用它也能避免嵌套RelativeLayout布局导致的重绘次数过多。
+- 4、最后，我们可以使用**AspectJ框架（即AOP）和LayoutInflaterCompat.setFactory2的方式分别去建立线下全局的布局加载速度和控件加载速度的监控体系**。
 
 
 #### 3、做完布局优化有哪些成果产出？
 
-- 1、首先，我们建立了一个体系化的监控手段，这里的体系还指的是线上加线下的一个综合方案，针对线下，我们使用AOP或者ARTHook，可以很方便地获取到每一个布局的加载耗时以及每一个控件的加载耗时。针对线上，我们通过Choreographer.getInstance().postFrameCallback的方式收集到了FPS，这样我们可以知道用户在哪些界面出现了丢帧的情况。
+- 1、首先，我们建立了一个体系化的监控手段，这里的体系还指的是线上加线下的一个综合方案，针对线下，我们使用AOP或者ARTHook，可以很方便地获取到每一个布局的加载耗时以及每一个控件的加载耗时。针对线上，我们通过**Choreographer.getInstance().postFrameCallback的方式收集到了FPS**，这样我们可以知道用户在哪些**界面**出现了**丢帧的情况**。
 - 2、然后，对于布局监控方面，我们设立了FPS、布局加载时间、布局层级等一系列指标。
 - 3、最后，在每一个版本上线之前，我们都会对我们的核心路径进行一次Review，确保我们的FPS、布局加载时间、布局层级等达到一个合理的状态。
 
@@ -242,15 +258,54 @@
 - 2、自动化卡顿方案及优化
 - 3、线上监控及线下监测工具的建设
 
+我做卡顿优化也是经历了一些阶段，最初我们的项目当中的一些模块出现了卡顿之后，我是通过**系统工具进行了定位，我使用了Systrace**，然后看了卡顿周期内的CPU状况，同时结合代码，对这个模块进行了重构，将部分代码进行了**异步和延迟**，在项目初期就是这样解决了问题。
 
-我做卡顿优化也是经历了一些阶段，最初我们的项目当中的一些模块出现了卡顿之后，我是通过系统工具进行了定位，我使用了Systrace，然后看了卡顿周期内的CPU状况，同时结合代码，对这个模块进行了重构，将部分代码进行了异步和延迟，在项目初期就是这样解决了问题。但是呢，随着我们项目的扩大，线下卡顿的问题也越来越多，同时，在线上，也有卡顿的反馈，但是线上的反馈卡顿，我们在线下难以复现，于是我们开始寻找自动化的卡顿监测方案，其思路是来自于Android的消息处理机制，主线程执行任何代码都会回到Looper.loop方法当中，而这个方法中有一个mLogging对象，它会在每个message的执行前后都会被调用，我们就是利用这个前后处理的时机来做到的自动化监测方案的。同时，在这个阶段，我们也完善了线上ANR的上报，我们采取的方式就是监控ANR的信息，同时结合了ANR-WatchDog，作为高版本没有文件权限的一个补充方案。在做完这个卡顿检测方案之后呢，我们还做了线上监控及线下检测工具的建设，最终实现了一整套完善，多维度的解决方案。
+但是呢，随着我们项目的扩大，线下卡顿的问题也越来越多，同时，在线上，也有卡顿的反馈，但是线上的反馈卡顿，我们在线下难以复现，于是我们开始寻找**自动化的卡顿监测方案**，其思路是来自于**Android的消息处理机制**，主线程执行任何代码都会回到**Looper.loop方法**当中，而这个方法中有一个**mLogging对象**，它会**在每个message的执行前后都会被调用（腾讯的Matrix分析卡顿的工具也借助了这点）**，我们就是利用这个前后处理的时机来做到的自动化监测方案的。同时，在这个阶段，我们也完善了**线上ANR的上报**，我们采取的方式就是监控**ANR的信息（data/anr/traces.txt）**，同时结合了**ANR-WatchDog**，作为高版本没有文件权限的一个补充方案。在做完这个卡顿检测方案之后呢，我们还做了线上监控及线下检测工具的建设，最终实现了一整套完善，多维度的解决方案。
+
+**ANR-WatchDog原理**：
+
+另外开启一个线程，循环中把一个runnable任务post到UIHandler，休眠指定时间（默认5s），醒来看Runnable，如果没执行就说明应用ANR了（还是仿照这AMS的ANR原理）
+
+```java
+public void run() {
+        long interval = _timeoutInterval;
+        while (!isInterrupted()) {
+            boolean needPost = _tick == 0;
+            _tick += interval;//①设置睡眠时间，默认5s
+            if (needPost) {//②是初始化状态就需要发送Runnable
+                _uiHandler.post(_ticker);
+            }
+                Thread.sleep(interval);
+            // ③如果主线程没有处理Runnable，就意味着阻塞了
+            if (_tick != 0 && !_reported) {
+            //④看否拦截这个ANR，我把阻塞的时间，你自己判断这算不算阻塞，因为不同组件定义阻塞的时间不同
+                interval = _anrInterceptor.intercept(_tick);
+                if (interval > 0) {
+                    continue;
+                }
+				
+                final ANRError error;
+                //⑤构建ANR现场的堆栈追踪信息
+                if (_namePrefix != null) {
+                    error = ANRError.New(_tick, _namePrefix, _logThreadsWithoutStackTrace);
+                } else {
+                    error = ANRError.NewMainOnly(_tick);
+                }
+                //⑥给检测端回调ANR接口
+                _anrListener.onAppNotResponding(error);
+                interval = _timeoutInterval;
+                _reported = true;
+            }
+        }
+    }
+```
 
 
 #### 5、你是怎么样自动化的获取卡顿信息？
 
-我们的思路是来自于Android的消息处理机制，主线程执行任何代码它都会走到Looper.loop方法当中，而这个函数当中有一个**mLogging**对象，它会在每个message处理前后都会被调用，而主线程发生了卡顿，那就一定会在dispatchMessage方法中执行了耗时的代码，那我们在这个message执行之前呢，我们可以在子线程当中去postDelayed一个任务，这个Delayed的时间就是我们设定的阈值，如果主线程的messaege在这个阈值之内完成了，那就取消掉这个子线程当中的任务，如果主线程的message在阈值之内没有被完成，那子线程当中的任务就会被执行，它会获取到当前主线程执行的一个堆栈，那我们就可以知道哪里发生了卡顿。
+我们的思路是来自于Android的消息处理机制，主线程执行任何代码它都会走到**Looper.loop**方法当中，而这个函数当中有一个**mLogging**对象（最主要是这玩意是支持设置），它会在**每个message处理前后都会被调用**，而主线程发生了卡顿，那就一定会在**dispatchMessage方法**中执行了耗时的代码，那我们在这个**message执行之前呢，我们可以在子线程当中去postDelayed一个任务**，这个Delayed的时间就是我们设定的阈值，如果**主线程的messaege在这个阈值之内完成了，那就取消掉这个子线程当中的任务**，如果主线程的message在阈值之内**没有被完成**，那子线程当中的任务就会被执行，它会获取到当前主线程执行的一个堆栈，那我们就可以知道哪里发生了**卡顿**。
 
-经过实践，我们发现这种方案获取的堆栈信息它不一定是准确的，因为获取到的堆栈信息它很可能是主线程最终执行的一个位置，而真正耗时的地方其实已经执行完成了，于是呢，我们就对这个方案做了一些优化，我们采取了**高频采集**的方案，也就是在一个周期内我们会多次采集主线程的堆栈信息，如果发生了卡顿，那我们就将这些卡顿信息压缩之后上报给APM后台，然后找出重复的堆栈信息，这些重复发生的堆栈大概率就是卡顿发生的一个位置，这样就提高了获取卡顿信息的一个准确性。
+经过实践，我们发现这种方案获取的堆栈信息它不一定是准确的，因为**获取到的堆栈信息它很可能是主线程最终执行的一个位置，而真正耗时的地方其实已经执行完成了**，于是呢，我们就对这个方案做了一些优化，我们采取了**`高频采集`**的方案，也就是在**一个周期内我们会多次采集主线程的堆栈信息，如果发生了卡顿，那我们就将这些卡顿信息压缩之后上报给APM后台，然后找出重复的堆栈信息，这些重复发生的堆栈大概率就是卡顿发生的一个位置，这样就*`提高了获取卡顿信息的一个准确性`***。
 
 
 #### 6、卡顿的一整套解决方案是怎么做的？
@@ -695,16 +750,18 @@ onTouchEvent：方法返回值为true表示当前视图可以处理对应的事�
 
 三个方法的关系用伪代码表示如下：
 
-    public boolean dispatchTouchEvent(MotionEvent ev) {
-        boolean consume = false;
-        if (onInterceptTouchEvent(ev)) {
-            consume = onTouchEvent(ev);
-        } else {
-            coonsume = child.dispatchTouchEvent(ev);
-        }
-        
-        return consume;
+```
+public boolean dispatchTouchEvent(MotionEvent ev) {
+    boolean consume = false;
+    if (onInterceptTouchEvent(ev)) {
+        consume = onTouchEvent(ev);
+    } else {
+        coonsume = child.dispatchTouchEvent(ev);
     }
+    
+    return consume;
+}
+```
 
 通过上面的伪代码，我们可以大致了解点击事件的传递规则：对应一个根ViewGroup来说，点击事件产生后，首先会传递给它，这是它的dispatchTouchEvent就会被调用，如果这个ViewGroup的onInterceptTouchEvent方法返回true就表示它要拦截当前事件，接着事件就会交给这个ViewGroup处理，这时如果它的mOnTouchListener被设置，则onTouch会被调用，否则onTouchEvent会被调用。在onTouchEvent中，如果设置了mOnCLickListener，则onClick会被调用。只要View的CLICKABLE和LONG_CLICKABLE有一个为true，onTouchEvent()就会返回true消耗这个事件。如果这个ViewGroup的onInterceptTouchEvent方法返回false就表示它不拦截当前事件，这时当前事件就会继续传递给它的子元素，接着子元素的dispatchTouchEvent方法就会被调用，如此反复直到事件被最终处理。
 
@@ -997,109 +1054,117 @@ aidl文件只是用来定义C/S交互的接口，Android在编译时会自动生
 1、首先定义IActivityManager接口：
 
 
-    public interface IActivityManager extends IInterface {
-        //binder描述符
-        String DESCRIPTOR = "android.app.IActivityManager";
-        //方法编号
-        int TRANSACTION_startActivity = IBinder.FIRST_CALL_TRANSACTION + 0;
-        //声明一个启动activity的方法，为了简化，这里只传入intent参数
-        int startActivity(Intent intent) throws RemoteException;
-    }
+```
+public interface IActivityManager extends IInterface {
+    //binder描述符
+    String DESCRIPTOR = "android.app.IActivityManager";
+    //方法编号
+    int TRANSACTION_startActivity = IBinder.FIRST_CALL_TRANSACTION + 0;
+    //声明一个启动activity的方法，为了简化，这里只传入intent参数
+    int startActivity(Intent intent) throws RemoteException;
+}
+```
 
  
 
 2、然后，实现ActivityManagerService侧的本地Binder对象基类：
 
 
-    // 名称随意，不一定叫Stub
-    public abstract class ActivityManagerNative extends Binder implements IActivityManager {
-    
-        public static IActivityManager asInterface(IBinder obj) {
-            if (obj == null) {
-                return null;
-            }
-            IActivityManager in = (IActivityManager) obj.queryLocalInterface(IActivityManager.DESCRIPTOR);
-            if (in != null) {
-                return in;
-            }
-            //代理对象，见下面的代码
-            return new ActivityManagerProxy(obj);
+```
+// 名称随意，不一定叫Stub
+public abstract class ActivityManagerNative extends Binder implements IActivityManager {
+
+    public static IActivityManager asInterface(IBinder obj) {
+        if (obj == null) {
+            return null;
         }
-    
-        @Override
-        public IBinder asBinder() {
-            return this;
+        IActivityManager in = (IActivityManager) obj.queryLocalInterface(IActivityManager.DESCRIPTOR);
+        if (in != null) {
+            return in;
         }
-    
-        @Override
-        protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
-            switch (code) {
-                // 获取binder描述符
-                case INTERFACE_TRANSACTION:
-                    reply.writeString(IActivityManager.DESCRIPTOR);
-                    return true;
-                // 启动activity，从data中反序列化出intent参数后，直接调用子类startActivity方法启动activity。
-                case IActivityManager.TRANSACTION_startActivity:
-                    data.enforceInterface(IActivityManager.DESCRIPTOR);
-                    Intent intent = Intent.CREATOR.createFromParcel(data);
-                    int result = this.startActivity(intent);
-                    reply.writeNoException();
-                    reply.writeInt(result);
-                    return true;
-            }
-            return super.onTransact(code, data, reply, flags);
-        }
+        //代理对象，见下面的代码
+        return new ActivityManagerProxy(obj);
     }
+
+    @Override
+    public IBinder asBinder() {
+        return this;
+    }
+
+    @Override
+    protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
+        switch (code) {
+            // 获取binder描述符
+            case INTERFACE_TRANSACTION:
+                reply.writeString(IActivityManager.DESCRIPTOR);
+                return true;
+            // 启动activity，从data中反序列化出intent参数后，直接调用子类startActivity方法启动activity。
+            case IActivityManager.TRANSACTION_startActivity:
+                data.enforceInterface(IActivityManager.DESCRIPTOR);
+                Intent intent = Intent.CREATOR.createFromParcel(data);
+                int result = this.startActivity(intent);
+                reply.writeNoException();
+                reply.writeInt(result);
+                return true;
+        }
+        return super.onTransact(code, data, reply, flags);
+    }
+}
+```
 
 
 3、接着，实现Client侧的代理对象：
 
 
-    public class ActivityManagerProxy implements IActivityManager {
-        private IBinder mRemote;
-    
-        public ActivityManagerProxy(IBinder remote) {
-            mRemote = remote;
-        }
-    
-        @Override
-        public IBinder asBinder() {
-            return mRemote;
-        }
-    
-        @Override
-        public int startActivity(Intent intent) throws RemoteException {
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            int result;
-            try {
-                // 将intent参数序列化，写入data中
-                intent.writeToParcel(data, 0);
-                // 调用BinderProxy对象的transact方法，交由Binder驱动处理。
-                mRemote.transact(IActivityManager.TRANSACTION_startActivity, data, reply, 0);
-                reply.readException();
-                // 等待server执行结束后，读取执行结果
-                result = reply.readInt();
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
-            return result;
-        }
+```
+public class ActivityManagerProxy implements IActivityManager {
+    private IBinder mRemote;
+
+    public ActivityManagerProxy(IBinder remote) {
+        mRemote = remote;
     }
+
+    @Override
+    public IBinder asBinder() {
+        return mRemote;
+    }
+
+    @Override
+    public int startActivity(Intent intent) throws RemoteException {
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        int result;
+        try {
+            // 将intent参数序列化，写入data中
+            intent.writeToParcel(data, 0);
+            // 调用BinderProxy对象的transact方法，交由Binder驱动处理。
+            mRemote.transact(IActivityManager.TRANSACTION_startActivity, data, reply, 0);
+            reply.readException();
+            // 等待server执行结束后，读取执行结果
+            result = reply.readInt();
+        } finally {
+            data.recycle();
+            reply.recycle();
+        }
+        return result;
+    }
+}
+```
 
  
 
 4、最后，实现Binder本地对象（IActivityManager接口）：
 
 
-    public class ActivityManagerService extends ActivityManagerNative {
-        @Override
-        public int startActivity(Intent intent) throws RemoteException {
-            // 启动activity
-            return 0;
-        }
+```
+public class ActivityManagerService extends ActivityManagerNative {
+    @Override
+    public int startActivity(Intent intent) throws RemoteException {
+        // 启动activity
+        return 0;
     }
+}
+```
 
 
 简化版的ActivityManagerService到这里就已经实现了，剩下就是Client只需要获取到AMS的代理对象IActivityManager就可以通信了。
@@ -1157,8 +1222,10 @@ Android系统启动的核心流程如下：
 是因为启动程序（主界面也是一个app），发现了在这个程序中存在一个设置为<category android:name="android.intent.category.LAUNCHER" />的activity,
 所以这个launcher会把icon提出来，放在主界面上。当用户点击icon的时候，发出一个Intent：
     
-    Intent intent = mActivity.getPackageManager().getLaunchIntentForPackage(packageName);
-    mActivity.startActivity(intent);   
+```
+Intent intent = mActivity.getPackageManager().getLaunchIntentForPackage(packageName);
+mActivity.startActivity(intent);   
+```
 
 跳过去可以跳到任意允许的页面，如一个程序可以下载，那么真正下载的页面可能不是首页（也有可能是首页），这时还是构造一个Intent，startActivity。这个intent中的action可能有多种view，download都有可能。系统会根据第三方程序向系统注册的功能，为你的Intent选择可以打开的程序或者页面。所以唯一的一点
 不同的是从icon的点击启动的intent的action是相对单一的，从程序中跳转或者启动可能样式更多一些。本质是相同的。
@@ -1887,9 +1954,11 @@ BitmapFactory.Options相关参数详解：
     
 (3).设置Options.inPurgeable和inInputShareable：让系统能及时回收内存。
     
-    A：inPurgeable：设置为True时，表示系统内存不足时可以被回收，设置为False时，表示不能被回收。
-    
-    B：inInputShareable：设置是否深拷贝，与inPurgeable结合使用，inPurgeable为false时，该参数无意义。
+```
+A：inPurgeable：设置为True时，表示系统内存不足时可以被回收，设置为False时，表示不能被回收。
+
+B：inInputShareable：设置是否深拷贝，与inPurgeable结合使用，inPurgeable为false时，该参数无意义。
+```
 
 (4).使用decodeStream代替decodeResource等其他方法。
 
@@ -1949,24 +2018,28 @@ LinkedHashMap 几乎和 HashMap 一样：从技术上来说，不同的是它定
 
 DiskLruCache与LruCache原理相似，只是多了一个journal文件来做磁盘文件的管理，如下所示：
 
-    libcore.io.DiskLruCache
-    1
-    1
-    1
-    
-    DIRTY 1517126350519
-    CLEAN 1517126350519 5325928
-    REMOVE 1517126350519
+```
+libcore.io.DiskLruCache
+1
+1
+1
+
+DIRTY 1517126350519
+CLEAN 1517126350519 5325928
+REMOVE 1517126350519
+```
 
 注：这里的缓存目录是应用的缓存目录/data/data/pckagename/cache，未root的手机可以通过以下命令进入到该目录中或者将该目录整体拷贝出来：
 
-    //进入/data/data/pckagename/cache目录
-    adb shell
-    run-as com.your.packagename 
-    cp /data/data/com.your.packagename/
-    
-    //将/data/data/pckagename目录拷贝出来
-    adb backup -noapk com.your.packagename
+```
+//进入/data/data/pckagename/cache目录
+adb shell
+run-as com.your.packagename 
+cp /data/data/com.your.packagename/
+
+//将/data/data/pckagename目录拷贝出来
+adb backup -noapk com.your.packagename
+```
 
 我们来分析下这个文件的内容：
 
@@ -2235,7 +2308,9 @@ gcTrigger : 用于 GC，watchExecutor 首次检测到可能的内存泄漏，会
 
 gcTrigger的runGc()方法：这里并没有使用System.gc()方法进行回收，因为system.gc()并不会每次都执行。而是从AOSP中拷贝一段GC回收的代码，从而相比System.gc()更能够保证进行垃圾回收的工作。
 
-    Runtime.getRuntime().gc();
+```
+Runtime.getRuntime().gc();
+```
 
 子线程延时1000ms；
 
@@ -3285,9 +3360,11 @@ https://www.jianshu.com/p/45202dcd5688
 
 Scroller执行流程里面的三个核心方法
     
-    mScroller.startScroll()；
-    mScroller.computeScrollOffset()；
-    view.computeScroll()；
+```
+mScroller.startScroll()；
+mScroller.computeScrollOffset()；
+view.computeScroll()；
+```
 
 1、在mScroller.startScroll()中为滑动做了一些初始化准备，比如：起始坐标，滑动的距离和方向以及持续时间(有默认值)，动画开始时间等。
     
@@ -3300,36 +3377,38 @@ Scroller执行流程里面的三个核心方法
 
 ##### Android中Java和JavaScript交互
 
-    webView.addJavaScriptInterface(new Object(){xxx}, "xxx");
-    1
-    答案：可以使用WebView控件执行JavaScript脚本，并且可以在JavaScript中执行Java代码。要想让WebView控件执行JavaScript，需要调用WebSettings.setJavaScriptEnabled方法，代码如下：
-    
-    WebView webView = (WebView)findViewById(R.id.webview);
-    WebSettings webSettings = webView.getSettings();
-    //设置WebView支持JavaScript
-    webSettings.setJavaScriptEnabled(true);
-    webView.setWebChromeClient(new WebChromeClient());
-    
-    JavaScript调用Java方法需要使用WebView.addJavascriptInterface方法设置JavaScript调用的Java方法，代码如下：
-    
-    webView.addJavascriptInterface(new Object()
+```
+webView.addJavaScriptInterface(new Object(){xxx}, "xxx");
+1
+答案：可以使用WebView控件执行JavaScript脚本，并且可以在JavaScript中执行Java代码。要想让WebView控件执行JavaScript，需要调用WebSettings.setJavaScriptEnabled方法，代码如下：
+
+WebView webView = (WebView)findViewById(R.id.webview);
+WebSettings webSettings = webView.getSettings();
+//设置WebView支持JavaScript
+webSettings.setJavaScriptEnabled(true);
+webView.setWebChromeClient(new WebChromeClient());
+
+JavaScript调用Java方法需要使用WebView.addJavascriptInterface方法设置JavaScript调用的Java方法，代码如下：
+
+webView.addJavascriptInterface(new Object()
+{
+    //JavaScript调用的方法
+    public String process(String value)
     {
-        //JavaScript调用的方法
-        public String process(String value)
-        {
-            //处理代码
-            return result;
-        }
-    }, "demo");       //demo是Java对象映射到JavaScript中的对象名
-    
-    可以使用下面的JavaScript代码调用process方法，代码如下：
-    
-    <script language="javascript">
-        function search()
-        {
-            //调用searchWord方法
-            result.innerHTML = "<font color='red'>" + window.demo.process('data') + "</font>";
-        }
+        //处理代码
+        return result;
+    }
+}, "demo");       //demo是Java对象映射到JavaScript中的对象名
+
+可以使用下面的JavaScript代码调用process方法，代码如下：
+
+<script language="javascript">
+    function search()
+    {
+        //调用searchWord方法
+        result.innerHTML = "<font color='red'>" + window.demo.process('data') + "</font>";
+    }
+```
 
 
 ### 18、如果在当前线程内使用Handler postdelayed 两个消息，一个延迟5s，一个延迟10s，然后使当前线程sleep 5秒，以上消息的执行时间会如何变化？
@@ -3356,7 +3435,9 @@ Scroller执行流程里面的三个核心方法
 
 ### 22、CrashHandler实现原理？
 
-    获取app crash的信息保存在本地然后在下一次打开app的时候发送到服务器。
+```
+获取app crash的信息保存在本地然后在下一次打开app的时候发送到服务器。
+```
 
    
 
@@ -3404,12 +3485,14 @@ Android提供了如下的一种机制，可以使两个apk打破前面讲的这�
 
 可以，当访问UI时，ViewRootImpl会调用checkThread方法去检查当前访问UI的线程是哪个，如果不是UI线程则会抛出异常。执行onCreate方法的那个时候ViewRootImpl还没创建，无法去检查当前线程.ViewRootImpl的创建在onResume方法回调之后。
 
-    void checkThread() {
-        if (mThread != Thread.currentThread()) {
-            throw new CalledFromWrongThreadException(
-                    "Only the original thread that created a view hierarchy can touch its views.");
-        }
+```
+void checkThread() {
+    if (mThread != Thread.currentThread()) {
+        throw new CalledFromWrongThreadException(
+                "Only the original thread that created a view hierarchy can touch its views.");
     }
+}
+```
 
 非UI线程是可以刷新UI的，前提是它要拥有自己的ViewRoot,即更新UI的线程和创建ViewRoot的线程是同一个，或者在执行checkThread()前更新UI。
 
