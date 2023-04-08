@@ -20,7 +20,7 @@
 
 #### 2、性能稳定性是怎么做的？
 
-- 全面的性能优化：启动速度、内存优化、绘制优化
+- 全面的性能优化：启动速度、内存优化、绘制优化。
 - 线下发现问题、优化为主
 - 线上监控为主
 - Crash专项优化
@@ -203,7 +203,8 @@
 - 1、能够获取整体的帧率。
 - 2、能够带到线上使用。	
 - 3、它获取的帧率几乎是实时的，能够满足我们的需求。
-    
+  
+
 同时，在线下，如果要去优化布局加载带来的时间消耗，那就需要检测每一个布局的耗时，对此我使用的是AOP的方式，它没有侵入性，同时也不需要别的开发同学进行接入，就可以方便地获取每一个布局加载的耗时。如果还要更细粒度地去检测每一个控件的加载耗时，那么就需要使用LayoutInflaterCompat.setFactory2这个方法去进行Hook。
 
 此外，我还使用了LayoutInspector和Systrace这两个工具，Systrace可以很方便地看到每帧的具体耗时以及这一帧在布局当中它真正做了什么。而LayoutInspector可以很方便地看到每一个界面的布局层级，帮助我们对层级进行优化。
@@ -259,7 +260,7 @@
 同时呢，卡顿问题还有很多的难题。比如说**有的代码呢，它不到你卡顿的一个阈值，但是执行过多，或者它错误地执行了很多次，它也会导致用户感官上的一个卡顿**，所以我们在线下通过AOP的方式对常见的耗时代码进行了Hook，然后对一段时间内获取到的数据进行分析，我们就可以知道这些耗时的代码发生的时机和次数以及耗时情况。然后，看它是不是满足我们的一个预期，不满足预期的话，我们就可以直接到线下进行修改。同时，卡顿监控它还有很多容易被忽略的一个**盲区**，比如说生命周期的一个间隔，那对于这种特定的问题呢，我们就采用了编译时注解的方式修改了项目当中所有Handler的父类，对于其中的两个方法进行了监控，我们就可以知道主线程message的执行时间以及它们的调用堆栈。
 
 对于**线上卡顿**，我们除了计算App的卡顿率、ANR率等常规指标之外呢，我们还计算了页面的秒开率、生命周期的执行时间等等。而且，在卡顿发生的时刻，我们也尽可能多地保存下来了当前的一个场景信息，这为我们之后解决或者复现这个卡顿留下了依据。
-   
+
 #### 7、卡顿的主要场景?
 
 卡顿的主要场景有很多，按场景可以分成4类：UI绘制、应用启动、页面跳转、事件响应，其中又可细分为如下：
@@ -319,7 +320,7 @@
 - 1）、**代码：Proguard、统一三方库、无用代码删除**。
 - 2）、**资源：无用资源删除、资源混淆**。
 - 3）、**So：只保留 Armeabi、更优方案**。
-    
+  
 
 在项目初期，我们一直在不断地加功能，加入了很多的代码、资源，同时呢，也没有相应的规范，所以说，**UI** 同学给我们很多 **UI** 图的时候，都是没有经过压缩的图片，长期累积就会导致我们的包体积越来越大。到了项目稳定期的时候，我们对各种运营数据进行考核，发现 **APK** 的包大小影响了用户下载的意愿，于是我们就着手做包体积的优化，我们采用的是 **Android Studio 自带的 Analyze APK 来做的包体积分析**，主要就是做了代码、资源、So 等三个方面的重点优化。
 
@@ -403,9 +404,9 @@
 #### 5、移动端获取网络数据优化的几个点
 
 - 1、连接复用：节省连接建立时间，如开启 keep-alive。于Android来说默认情况下HttpURLConnection和HttpClient都开启了keep-alive。只是2.2之前HttpURLConnection存在影响连接池的Bug。
-    
+  
 - 2、请求合并：即将多个请求合并为一个进行请求，比较常见的就是网页中的CSS Image Sprites。如果某个页面内请求过多，也可以考虑做一定的请求合并。
-    
+  
 - 3、减少请求数据的大小：对于post请求，body可以做gzip压缩的，header也可以做数据压缩(不过只支持http 2.0)。
 返回数据的body也可以做gzip压缩，body数据体积可以缩小到原来的30%左右（也可以考虑压缩返回的json数据的key数据的体积，尤其是针对返回数据格式变化不大的情况，支付宝聊天返回的数据用到了）。
 
@@ -643,7 +644,7 @@ Android 还包含一套核心运行时库，可提供 Java API 框架使用的 J
 Android 平台的基础是 Linux 内核。例如，Android Runtime (ART) 依靠 Linux 内核来执行底层功能，例如线程和低层内存管理。使用 Linux 内核可让 Android 利用主要安全功能，并且允许设备制造商为著名的内核开发硬件驱动程序。
 
 #### 对于Android应用开发来说，最好能手绘下面的系统架构图：
-    
+
 ![image](https://raw.githubusercontent.com/BeesAndroid/BeesAndroid/master/art/android_system_structure.png)
 
 
@@ -1004,8 +1005,9 @@ aidl文件只是用来定义C/S交互的接口，Android在编译时会自动生
         //声明一个启动activity的方法，为了简化，这里只传入intent参数
         int startActivity(Intent intent) throws RemoteException;
     }
-    
+
  
+
 2、然后，实现ActivityManagerService侧的本地Binder对象基类：
 
 
@@ -1085,8 +1087,9 @@ aidl文件只是用来定义C/S交互的接口，Android在编译时会自动生
             return result;
         }
     }
-    
+
  
+
 4、最后，实现Binder本地对象（IActivityManager接口）：
 
 
@@ -1097,7 +1100,7 @@ aidl文件只是用来定义C/S交互的接口，Android在编译时会自动生
             return 0;
         }
     }
-    
+
 
 简化版的ActivityManagerService到这里就已经实现了，剩下就是Client只需要获取到AMS的代理对象IActivityManager就可以通信了。
 
@@ -1156,7 +1159,7 @@ Android系统启动的核心流程如下：
     
     Intent intent = mActivity.getPackageManager().getLaunchIntentForPackage(packageName);
     mActivity.startActivity(intent);   
-    
+
 跳过去可以跳到任意允许的页面，如一个程序可以下载，那么真正下载的页面可能不是首页（也有可能是首页），这时还是构造一个Intent，startActivity。这个intent中的action可能有多种view，download都有可能。系统会根据第三方程序向系统注册的功能，为你的Intent选择可以打开的程序或者页面。所以唯一的一点
 不同的是从icon的点击启动的intent的action是相对单一的，从程序中跳转或者启动可能样式更多一些。本质是相同的。
 
@@ -1256,7 +1259,7 @@ Activity的启动流程图（放大可查看）如下所示：
 ### 13、WMS是如何管理Window的？
 
 #### Window 、WindowManager、WMS、SurfaceFlinger
-    
+
 - WIndow：抽象概念不是实际存在的，而是以 View 的形式存在，通过 PhoneWindow 实现
 - WindowManager：外界访问 Window 的入口，内部与 WMS 交互是个 IPC 过程
 - WMS：管理窗口 Surface 的布局和次序，作为系统级服务单独运行在一个进程
@@ -1532,32 +1535,33 @@ boolean bool; false/true 1字节
             printf("找不到默认的构造方法");  
             return;  
         }  
-    
+        
         // 3、查找实例方法的ID  
         mid_instance = (*env)->GetMethodID(env, clazz, "callInstanceMethod", "(Ljava/lang/String;I)V");  
         if (mid_instance == NULL) {  
-    
+        
             return;  
         }  
-    
+        
         // 4、创建该类的实例  
         jobj = (*env)->NewObject(env,clazz,mid_construct);  
         if (jobj == NULL) {  
             printf("在com.study.jnilearn.ClassMethod类中找不到callInstanceMethod方法");  
             return;  
         }  
-    
+        
         // 5、调用对象的实例方法  
         str_arg = (*env)->NewStringUTF(env,"我是实例方法");  
         (*env)->CallVoidMethod(env,jobj,mid_instance,str_arg,200);  
-    
+        
         // 删除局部引用  
         (*env)->DeleteLocalRef(env,clazz);  
         (*env)->DeleteLocalRef(env,jobj);  
         (*env)->DeleteLocalRef(env,str_arg);  
       }  
-   
+  
     
+  
 #### 如何在jni中注册native函数，有几种注册方式？
 
 #### so 的加载流程是怎样的，生命周期是怎样的？
@@ -1865,12 +1869,12 @@ public <R> LoadStatus load() {
 因为Glide 在加载资源的时候，如果是在 Activity、Fragment 这一类有生命周期的组件上进行的话，会创建一个透明的 RequestManagerFragment 加入到FragmentManager 之中，感知生命周期，当 Activity、Fragment 等组件进入不可见，或者已经销毁的时候，Glide 会停止加载资源。但是如果，是在非生命周期的组件上进行时，会采用Application 的生命周期贯穿整个应用，所以 applicationManager 只有在应用程序关闭的时候终止加载。
 
 ##### 计算一张图片的大小
-    
+
 图片占用内存的计算公式：图片高度 * 图片宽度 * 一个像素占用的内存大小。所以，计算图片占用内存大小的时候，要考虑图片所在的目录跟设备密度，这两个因素其实影响的是图片的宽高，android会对图片进行拉升跟压缩。
     
     
 ##### 加载bitmap过程（怎样保证不产生内存溢出）
-    
+
 由于Android对图片使用内存有限制，若是加载几兆的大图片便内存溢出。Bitmap会将图片的所有像素（即长x宽）加载到内存中，如果图片分辨率过大，会直接导致内存OOM，只有在BitmapFactory加载图片时使用BitmapFactory.Options对相关参数进行配置来减少加载的像素。
     
 BitmapFactory.Options相关参数详解：
@@ -1886,9 +1890,9 @@ BitmapFactory.Options相关参数详解：
     A：inPurgeable：设置为True时，表示系统内存不足时可以被回收，设置为False时，表示不能被回收。
     
     B：inInputShareable：设置是否深拷贝，与inPurgeable结合使用，inPurgeable为false时，该参数无意义。
-    
+
 (4).使用decodeStream代替decodeResource等其他方法。
-  
+
 
 ### Android中软引用与弱引用的应用场景。
 
@@ -1913,7 +1917,7 @@ LRU是Least Recently Used的缩写，最近最少使用算法，从它的名字�
 
 
 ##### LruCache原理
-    
+
 之前，我们会使用内存缓存技术实现，也就是软引用或弱引用，在Android 2.3（APILevel 9）开始，垃圾回收器会更倾向于回收持有软引用或弱引用的对象，这让软引用和弱引用变得不再可靠。
 
 其实LRU缓存的实现类似于一个特殊的栈，把访问过的元素放置到栈顶（若栈中存在，则更新至栈顶；若栈中不存在则直接入栈），然后如果栈中元素数量超过限定值，则删除栈底元素（即最近最少使用的元素）。
@@ -1953,7 +1957,7 @@ DiskLruCache与LruCache原理相似，只是多了一个journal文件来做磁�
     DIRTY 1517126350519
     CLEAN 1517126350519 5325928
     REMOVE 1517126350519
-    
+
 注：这里的缓存目录是应用的缓存目录/data/data/pckagename/cache，未root的手机可以通过以下命令进入到该目录中或者将该目录整体拷贝出来：
 
     //进入/data/data/pckagename/cache目录
@@ -1963,7 +1967,7 @@ DiskLruCache与LruCache原理相似，只是多了一个journal文件来做磁�
     
     //将/data/data/pckagename目录拷贝出来
     adb backup -noapk com.your.packagename
-    
+
 我们来分析下这个文件的内容：
 
 第一行：libcore.io.DiskLruCache，固定字符串。
@@ -2029,11 +2033,11 @@ BitMap的缓存：
 - 3、v4包的LruCache可以兼容到2.2版本，LruCache采用LinkedHashMap存储缓存对象。创建对象只需要提供缓存容量并重写sizeOf方法：作用是计算缓存对象的大小。有时需要重写entryRemoved方法，用于回收一些资源。
 - 4、DiskLruCache通过open方法创建，设置缓存路径，缓存容量。缓存添加通过Editor对象创建输出流，下载资源到输出流完成后，commit，如果失败则abort撤回。然后刷新磁盘缓存。缓存查找通过Snapshot对象获取输入流，获取FileDescriptor，通过FileDescriptor解析出Bitmap对象。
 - 5、列表中需要加载图片的时候，当列表在滑动中不进行图片加载，当滑动停止后再去加载图片。
-    
+  
     
 ##### Bitmap在decode的时候申请的内存如何复用，释放时机
-    
-    
+
+
 ##### 图片库对比
 
 http://stackoverflow.com/questions/29363321/picasso-v-s-imageloader-v-s-fresco-vs-glide
@@ -3284,7 +3288,7 @@ Scroller执行流程里面的三个核心方法
     mScroller.startScroll()；
     mScroller.computeScrollOffset()；
     view.computeScroll()；
-    
+
 1、在mScroller.startScroll()中为滑动做了一些初始化准备，比如：起始坐标，滑动的距离和方向以及持续时间(有默认值)，动画开始时间等。
     
 2、mScroller.computeScrollOffset()方法主要是根据当前已经消逝的时间来计算当前的坐标点。因为在mScroller.startScroll()中设置了动画时间，那么在computeScrollOffset()方法中依据已经消逝的时间就很容易得到当前时刻应该所处的位置并将其保存在变量mCurrX和mCurrY中。除此之外该方法还可判断动画是否已经结束。
@@ -3353,8 +3357,9 @@ Scroller执行流程里面的三个核心方法
 ### 22、CrashHandler实现原理？
 
     获取app crash的信息保存在本地然后在下一次打开app的时候发送到服务器。
+
    
-   
+
 ### 23、SurfaceView和View的最本质的区别？
 
 SurfaceView是在一个新起的单独线程中可以重新绘制画面，而view必须在UI的主线程中更新画面。
@@ -3405,7 +3410,7 @@ Android提供了如下的一种机制，可以使两个apk打破前面讲的这�
                     "Only the original thread that created a view hierarchy can touch its views.");
         }
     }
-    
+
 非UI线程是可以刷新UI的，前提是它要拥有自己的ViewRoot,即更新UI的线程和创建ViewRoot的线程是同一个，或者在执行checkThread()前更新UI。
 
 
@@ -3492,7 +3497,6 @@ jni修改一个class的classloder为BootStrapClassLoader，麻烦。
     - 先了解下 MVP：Model：处理数据；View：控制视图；Presenter：分离 Activity 和 Model
     - 再看 MVVM：Model：处理获取保存数据；View：控制视图；ViewModel：数据容器
     - 使用 Jetpack 组件架构的 LiveData、ViewModel 可以便捷的实现 MVVM
-
 
 
 
